@@ -41,6 +41,13 @@ class Settings:
     sqlite_path: Path
     host: str
     port: int
+    browser_scout: str  # "auto" | "on" | "off"
+    browser_headless: bool
+    browser_max_steps: int
+    browser_timeout_seconds: float
+    browser_use_api_key: str | None
+    browser_use_cloud: bool
+    browser_model_id: str
 
     @classmethod
     def load(cls) -> "Settings":
@@ -61,6 +68,13 @@ class Settings:
             sqlite_path=Path(os.getenv("CREATOR_COMPANION_DB") or APP_DIR / "data" / "creator-companion.db"),
             host=os.getenv("CREATOR_COMPANION_HOST") or "0.0.0.0",
             port=int(os.getenv("CREATOR_COMPANION_PORT") or "7777"),
+            browser_scout=(os.getenv("BROWSER_SCOUT") or "auto").strip().lower(),
+            browser_headless=(os.getenv("BROWSER_HEADLESS") or "1").strip().lower() not in ("0", "false", "no"),
+            browser_max_steps=int(os.getenv("BROWSER_MAX_STEPS") or "12"),
+            browser_timeout_seconds=float(os.getenv("BROWSER_TIMEOUT_SECONDS") or "180"),
+            browser_use_api_key=_opt("BROWSER_USE_API_KEY"),
+            browser_use_cloud=(os.getenv("BROWSER_USE_CLOUD") or "0").strip().lower() in ("1", "true", "yes"),
+            browser_model_id=(os.getenv("BROWSER_MODEL") or os.getenv("MODEL") or default_model).strip(),
         )
 
     @property

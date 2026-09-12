@@ -44,6 +44,8 @@ def create_agent_os(settings: Optional[Settings] = None) -> tuple[AgentOS, Creat
         log.warning("ZERNIO_API_KEY is not set; Zernio tools will report not_configured until it is.")
     if not settings.zernio_webhook_secret:
         log.warning("ZERNIO_WEBHOOK_SECRET is not set; POST /webhooks/zernio will answer 503.")
+    if companion.web_scout is None:
+        log.warning("Web Scout is disabled (install with `uv sync --extra browser`, or set BROWSER_SCOUT=on/off).")
 
     agent_os = AgentOS(
         id="creator-companion-os",
@@ -51,15 +53,11 @@ def create_agent_os(settings: Optional[Settings] = None) -> tuple[AgentOS, Creat
         description="Agents that live in a creator's social inbox: monitor, triage, and plan.",
         db=db,
         teams=[companion.team],
-        agents=[companion.monitor, companion.community, companion.strategist],
+        agents=companion.members,
         # AG-UI endpoints for the CopilotKit web app (apps/web): the team at
         # POST /agui, each member under /members/<id>/agui.
-        interfaces=[
-            AGUI(team=companion.team),
-            AGUI(agent=companion.monitor, prefix=f"/members/{companion.monitor.id}"),
-            AGUI(agent=companion.community, prefix=f"/members/{companion.community.id}"),
-            AGUI(agent=companion.strategist, prefix=f"/members/{companion.strategist.id}"),
-        ],
+        interfaces=[AGUI(team=companion.team)]
+        + [AGUI(agent=member, prefix=f"/members/{member.id}") for member in companion.members],
         base_app=create_base_app(companion, settings),
         scheduler=True,
         scheduler_poll_interval=15,

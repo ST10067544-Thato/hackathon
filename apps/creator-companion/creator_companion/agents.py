@@ -19,6 +19,7 @@ from agno.team import Team
 from agno.tools.exa import ExaTools
 
 from creator_companion.config import Settings
+from creator_companion.tools.web_scout import WebScoutTools, browser_available
 from creator_companion.tools.workspace import (
     ATTENTION_TOOLS,
     DRAFT_TOOLS,
@@ -39,6 +40,7 @@ TEAM_ID = "creator-companion"
 MONITOR_ID = "social-monitor"
 COMMUNITY_ID = "community-advisor"
 STRATEGIST_ID = "content-strategist"
+WEB_SCOUT_ID = "web-scout"
 
 
 def build_model(settings: Settings) -> Model:
@@ -53,8 +55,13 @@ class CreatorCompanion:
     monitor: Agent
     community: Agent
     strategist: Agent
+    web_scout: Optional[Agent]
     workspace: Workspace
     zernio: ZernioClient
+
+    @property
+    def members(self) -> list[Agent]:
+        return [m for m in (self.monitor, self.community, self.strategist, self.web_scout) if m is not None]
 
 
 def build_team(
@@ -141,19 +148,23 @@ def build_team(
         markdown=True,
     )
 
+    web_scout = build_web_scout(settings, model, db)
+
+    members = [monitor, community, strategist] + ([web_scout] if web_scout else [])
     team = Team(
         id=TEAM_ID,
         name="Creator Companion",
         description="Monitors a creator's connected social accounts and turns comments and analytics into a report, reply drafts, and next content ideas.",
         model=model,
         db=db,
-        members=[monitor, community, strategist],
+        members=members,
         tools=[WorkspaceTools(workspace, include_tools=REPORT_TOOLS)],
         instructions=[
             "Coordinate a monitoring report for the creator.",
             "Lead with items that need attention, then performance insights and next actions.",
             "Keep recommendations specific and actionable.",
             "Delegate data retrieval to Social Monitor, comment triage and reply drafts to Community Advisor, and content advice to Content Strategist; pass each member the account ids and time window they need.",
+            "For anything outside the connected accounts (a competitor's or peer's public profile, a link the creator shares, a hashtag or trend page, a post linked in a comment) delegate to Web Scout with the exact URL and a specific goal; it is read-only and slow, so ask for one page at a time.",
             "Finish by calling save_report with the complete report so it survives a restart, then return the same report.",
             "Never claim a reply was posted or a draft was created unless the tool result confirms it; approval-gated tools may still be waiting on the creator.",
         ],
@@ -164,4 +175,49 @@ def build_team(
         markdown=True,
     )
 
-    return CreatorCompanion(team=team, monitor=monitor, community=community, strategist=strategist, workspace=workspace, zernio=zernio)
+    return CreatorCompanion(
+        team=team,
+        monitor=monitor,
+        community=community,
+        strategist=strategist,
+        web_scout=web_scout,
+        workspace=workspace,
+        zernio=zernio,
+    )
+
+
+def web_scout_enabled(settings: Settings) -> bool:
+    if settings.browser_scout == "off":
+        return False
+    if settings.browser_scout == "on":
+        return True
+    return browser_available()
+
+
+def build_web_scout(settings: Settings, model: Model, db: BaseDb) -> Optional[Agent]:
+    """The browser-use member. Absent unless the `browser` extra is installed (or BROWSER_SCOUT=on)."""
+    if not web_scout_enabled(settings):
+        return None
+    return Agent(
+        id=WEB_SCOUT_ID,
+        name="Web Scout",
+        role="Read public web pages the social APIs cannot see, in a real browser.",
+        model=model,
+        db=db,
+        tools=[
+            WebScoutTools(
+                settings,
+                max_steps=settings.browser_max_steps,
+                timeout_seconds=settings.browser_timeout_seconds,
+                headless=settings.browser_headless,
+            )
+        ],
+        instructions=[
+            "Browse only public pages you were given a URL for, or that the goal clearly names; never log in, and never click anything that posts, likes, follows, subscribes, or buys.",
+            "Call browse_page once per page with a specific goal; report only what the tool says was on the page, with the URL.",
+            "If the page was blocked (login wall, captcha, error) say so plainly instead of guessing.",
+            "Turn observations into signals a creator can use: formats, hooks, posting cadence, offers, engagement numbers as displayed.",
+        ],
+        add_datetime_to_context=True,
+        markdown=True,
+    )

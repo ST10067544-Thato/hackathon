@@ -72,6 +72,13 @@ def settings(tmp_path: Path) -> Settings:
         sqlite_path=tmp_path / "agno.db",
         host="127.0.0.1",
         port=7777,
+        browser_scout="off",
+        browser_headless=True,
+        browser_max_steps=3,
+        browser_timeout_seconds=5.0,
+        browser_use_api_key=None,
+        browser_use_cloud=False,
+        browser_model_id="gpt-test",
     )
 
 

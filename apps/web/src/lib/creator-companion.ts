@@ -29,6 +29,12 @@ export const CREATOR_AGENTS = [
     blurb: "Content ideas, hooks, timing. Saving a draft needs your approval.",
     path: "/members/content-strategist/agui",
   },
+  {
+    id: "webScout",
+    label: "Web Scout",
+    blurb: "Opens a public page in a real browser — a competitor profile, your link-in-bio, a trend page — and reports back. Read-only.",
+    path: "/members/web-scout/agui",
+  },
 ] as const;
 
 export type CreatorAgentId = (typeof CREATOR_AGENTS)[number]["id"];
