@@ -1,12 +1,35 @@
-/* Calm defaults shared by the web example, voice page, and agent cards. */
+/* social dog — palette taken from the app icon: black ground, tan dog, cream
+   type, yellow accent, one pink used only where something needs to feel alive. */
 :root {
-  --ground: #ededf5;
-  --surface: #fff;
-  --border: #dbdbe5;
-  --text: #010507;
-  --muted: #57575b;
-  --accent: #010507;
-  color-scheme: light;
+  --ground: #0a0908;
+  --surface: #151310;
+  --surface-2: #1d1a15;
+  --border: #2b2620;
+  --text: #f7eacb;
+  --muted: #9d917c;
+  --accent: #ffc24a;
+  --accent-ink: #17130b;
+  --brand-tan: #c6843f;
+  --brand-tan-dark: #a6632b;
+  --brand-pink: #ff5c78;
+  --ok: #6bd39b;
+  --warn: #ffb44a;
+  --danger: #ff7a70;
+  color-scheme: dark;
+}
+/* Aliases. CopilotKit's chat uses --muted, --accent and --border for its own
+   meanings, so the chat block below must read the brand values through names
+   that cannot collide — `--accent: var(--accent)` would be a cycle. */
+:root {
+  --sd-surface: #151310;
+  --sd-surface-2: #1d1a15;
+  --sd-border: #2b2620;
+  --sd-text: #f7eacb;
+  --sd-muted: #9d917c;
+  --sd-accent: #ffc24a;
+  --sd-accent-ink: #17130b;
+  --sd-tan: #c6843f;
+  --sd-danger: #ff7a70;
 }
 * {
   box-sizing: border-box;
@@ -14,10 +37,15 @@
 body {
   margin: 0;
   background: var(--ground);
+  background-image:
+    radial-gradient(900px 520px at 12% -8%, rgba(198, 132, 63, 0.16), transparent 62%),
+    radial-gradient(760px 460px at 92% 0%, rgba(255, 194, 74, 0.1), transparent 60%);
+  background-attachment: fixed;
   color: var(--text);
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: "Nunito", "Plus Jakarta Sans", system-ui, sans-serif;
   font-size: 14px;
   line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
 }
 button,
 input,
@@ -78,11 +106,18 @@ p {
 .ck-tag {
   flex-shrink: 0;
   font-size: 12px;
-  padding: 4px 10px;
+  font-weight: 600;
+  padding: 6px 14px;
   border: 1px solid var(--border);
   border-radius: 999px;
   color: var(--muted);
   white-space: nowrap;
+  text-decoration: none;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.ck-tag:hover {
+  color: var(--accent);
+  border-color: var(--accent);
 }
 .ck-workspace-grid {
   display: grid;
@@ -93,9 +128,10 @@ p {
 .ck-panel {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: 20px;
   padding: 28px;
   min-width: 0;
+  box-shadow: 0 1px 0 rgba(255, 234, 203, 0.04) inset, 0 18px 40px -32px rgba(0, 0, 0, 0.9);
 }
 .ck-incident-picker {
   display: flex;
@@ -113,10 +149,13 @@ p {
   min-width: 0;
   max-width: 100%;
   color: var(--text);
-  background: #f7f7f9;
+  background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 10px;
+}
+.ck-incident-picker select:hover {
+  border-color: var(--brand-tan);
 }
 .ck-detail {
   padding: 24px 0;
@@ -222,7 +261,7 @@ p {
   width: 100%;
   min-width: 0;
   border: 1px solid var(--border);
-  background: var(--surface);
+  background: var(--surface-2);
   border-radius: 8px;
   padding: 10px 12px;
   color: var(--text);
@@ -325,10 +364,10 @@ p {
 
 /* ── agent-rendered cards ──────────────────────────────────────────────── */
 .ck-card {
-  background: var(--surface);
+  background: var(--surface-2);
   border: 1px solid var(--border);
-  border-left: 3px solid var(--muted);
-  border-radius: 3px;
+  border-left: 3px solid var(--brand-tan);
+  border-radius: 12px;
   padding: 0.9rem 1rem;
   margin: 0.5rem 0;
   font-size: 0.92rem;
@@ -404,12 +443,14 @@ p {
 .ck-btn {
   font: inherit;
   font-size: 0.85rem;
-  padding: 0.35rem 0.8rem;
+  font-weight: 600;
+  padding: 0.4rem 0.9rem;
   cursor: pointer;
-  background: var(--surface);
+  background: var(--surface-2);
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 3px;
+  border-radius: 999px;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 .ck-btn:hover {
   border-color: var(--muted);
@@ -417,7 +458,12 @@ p {
 .ck-btn--primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+.ck-btn--primary:hover {
+  background: #ffd275;
+  border-color: #ffd275;
 }
 .ck-btn--tiny {
   font-size: 0.75rem;
@@ -437,7 +483,7 @@ p {
   color: var(--muted);
 }
 .ck-status[data-status="live"] {
-  color: #2e7d5b;
+  color: var(--ok);
 }
 .ck-status[data-status="error"] {
   color: var(--accent);
@@ -446,7 +492,7 @@ p {
   font-family: ui-monospace, monospace;
   font-size: 0.8rem;
   line-height: 1.8;
-  background: var(--surface);
+  background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: 3px;
   padding: 0.9rem 1rem;
@@ -471,7 +517,7 @@ p {
   width: 100%;
   min-width: 0;
   border: 1px solid var(--border);
-  background: var(--surface);
+  background: var(--surface-2);
   border-radius: 8px;
   padding: 10px 12px;
   color: var(--text);
@@ -502,7 +548,7 @@ p {
 }
 .ck-setup-note,
 .ck-approval {
-  background: #f7f7f9;
+  background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 16px;
@@ -524,8 +570,9 @@ p {
   flex-wrap: wrap;
 }
 .ck-error {
-  color: #a12730;
-  background: #fff1f2;
+  color: var(--danger);
+  background: rgba(255, 122, 112, 0.1);
+  border: 1px solid rgba(255, 122, 112, 0.28);
   padding: 12px;
   border-radius: 8px;
   font-size: 13px;
@@ -534,10 +581,10 @@ p {
 
 /* Creator Companion page */
 .ck-priority-high {
-  color: #b42318;
+  color: var(--danger);
 }
 .ck-priority-medium {
-  color: #b54708;
+  color: var(--warn);
 }
 .ck-priority-low {
   color: var(--muted, #667085);
@@ -549,4 +596,185 @@ p {
 .ck-report {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+/* ── social dog brand ──────────────────────────────────────────────────── */
+.sd-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+}
+.sd-wordmark {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  line-height: 1;
+}
+.sd-wordmark-accent {
+  color: var(--accent);
+}
+.sd-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 32px;
+  /* CopilotKit's floating inspector bubble sits top-right; keep the nav clear of it. */
+  padding-right: 96px;
+  background: rgba(10, 9, 8, 0.82);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+}
+.sd-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sd-nav a {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 999px;
+  color: var(--muted);
+  text-decoration: none;
+  border: 1px solid transparent;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.sd-nav a:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+.sd-nav a[aria-current="page"] {
+  color: var(--accent);
+  border-color: var(--border);
+  background: var(--surface);
+}
+/* the dog peeking at the top of a page header */
+.sd-hero {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.sd-hero-mark {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 20px;
+  background: #000;
+  border: 1px solid var(--border);
+}
+.sd-status-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--muted);
+  margin-right: 7px;
+  vertical-align: middle;
+}
+.sd-status-dot[data-live="true"] {
+  background: var(--ok);
+  box-shadow: 0 0 0 3px rgba(107, 211, 155, 0.16);
+}
+.sd-status-dot[data-live="error"] {
+  background: var(--danger);
+  box-shadow: 0 0 0 3px rgba(255, 122, 112, 0.16);
+}
+
+/* CopilotKit chat, dressed for the dark brand.
+   v2 ships shadcn-style semantic tokens with a `.dark` variant (set on <html>);
+   these repaint that variant in the social dog palette. Values come from the
+   --sd-* aliases: several token names are shared with our own, and a
+   self-reference like `--border: var(--border)` is a cycle, not an override. */
+.ck-chat {
+  --background: var(--sd-surface);
+  --foreground: var(--sd-text);
+  --card: var(--sd-surface);
+  --card-foreground: var(--sd-text);
+  --popover: var(--sd-surface-2);
+  --popover-foreground: var(--sd-text);
+  --primary: var(--sd-accent);
+  --primary-foreground: var(--sd-accent-ink);
+  --secondary: var(--sd-surface-2);
+  --secondary-foreground: var(--sd-text);
+  --muted: var(--sd-surface-2);
+  --muted-foreground: var(--sd-muted);
+  --accent: var(--sd-surface-2);
+  --accent-foreground: var(--sd-text);
+  --border: var(--sd-border);
+  --input: var(--sd-surface-2);
+  --ring: var(--sd-tan);
+  --destructive: rgba(255, 122, 112, 0.22);
+  --destructive-foreground: var(--sd-danger);
+  background: transparent;
+  color: var(--sd-text);
+  border-radius: 0 0 20px 20px;
+  overflow: hidden;
+}
+.ck-chat a {
+  color: var(--sd-accent);
+}
+/* The assistant panel holds the chat, so it must not paint white behind it. */
+.ck-assistant {
+  background: var(--surface);
+}
+
+@media (max-width: 800px) {
+  .sd-topbar {
+    padding: 12px 20px;
+    padding-right: 84px;
+  }
+  .sd-wordmark {
+    font-size: 22px;
+  }
+}
+@media (max-width: 480px) {
+  .sd-topbar {
+    padding: 10px 16px;
+    padding-right: 72px;
+  }
+  .sd-nav a {
+    font-size: 12px;
+  }
+  .sd-nav a {
+    padding: 6px 10px;
+  }
+  .sd-hero-mark {
+    width: 52px;
+    height: 52px;
+    border-radius: 16px;
+  }
+}
+
+/* CopilotKit paints the composer and suggestion chips with a hardcoded
+   `cpk:bg-white` utility rather than a theme token, so they stay white even in
+   its dark mode. Repaint just the BACKGROUND utilities inside our chat —
+   `text-white` is left alone, since it is what keeps label text readable. */
+.ck-chat :is(.cpk\:bg-white, .cpk\:dark\:bg-white) {
+  background-color: var(--surface-2);
+  border-color: var(--border);
+  color: var(--text);
+}
+.ck-chat :is(.cpk\:bg-white\/70) {
+  background-color: color-mix(in srgb, var(--surface-2) 80%, transparent);
+  color: var(--text);
+}
+.ck-chat :is(.cpk\:hover\:bg-white\/20:hover) {
+  background-color: color-mix(in srgb, var(--brand-tan) 22%, transparent);
+}
+/* Placeholder and input text inside the composer. */
+.ck-chat :is(input, textarea) {
+  color: var(--text);
+}
+.ck-chat :is(input, textarea)::placeholder {
+  /* CopilotKit's own dark placeholder is near-invisible on this ground. */
+  color: color-mix(in srgb, var(--sd-text) 52%, transparent);
+  opacity: 1;
 }

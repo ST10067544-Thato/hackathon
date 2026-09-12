@@ -52,7 +52,7 @@ export default function Home() {
       <main className="ck-workspace">
         <header className="ck-workspace-header">
           <div>
-            <p className="ck-eyebrow">Agents, everywhere · Web example</p>
+            <p className="ck-eyebrow">social dog · incident example</p>
             <h1>Incident assistant</h1>
             <p className="ck-intro">
               Pick an incident. Ask your assistant. Review a follow-up.

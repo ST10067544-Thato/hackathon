@@ -12,6 +12,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CopilotChat, useAgentContext, useConfigureSuggestions } from "@copilotkit/react-core/v2";
 import { CreatorApprovals } from "@/components/creator-approvals";
 import { CreatorWorkspace, useCreatorWorkspace } from "@/components/creator-workspace";
+import { SocialDogLogo } from "@/components/social-dog-logo";
 import { CREATOR_AGENTS, CREATOR_SUGGESTIONS, type CreatorAgentId } from "@/lib/creator-companion";
 
 /**
@@ -89,12 +90,27 @@ export default function CreatorPage() {
       <CreatorApprovals onDecided={() => void workspace.refresh()} />
       <main className="ck-workspace">
         <header className="ck-workspace-header">
-          <div>
-            <p className="ck-eyebrow">Agents, everywhere · Creator Companion</p>
-            <h1>Your social inbox, triaged</h1>
-            <p className="ck-intro">
-              Ask what needs attention. Review drafts. Approve replies before they go out.
-            </p>
+          <div className="sd-hero">
+            <span className="sd-hero-mark" aria-hidden="true">
+              <SocialDogLogo size={46} />
+            </span>
+            <div>
+              <p className="ck-eyebrow">
+                <span
+                  className="sd-status-dot"
+                  data-live={workspace.state.status === "ready" ? "true" : workspace.state.status === "offline" ? "error" : "false"}
+                />
+                {workspace.state.status === "ready"
+                  ? "Pack online"
+                  : workspace.state.status === "offline"
+                    ? "Pack offline"
+                    : "Waking the pack…"}
+              </p>
+              <h1>Your social inbox, triaged</h1>
+              <p className="ck-intro">
+                Ask what needs attention. Review drafts. Nothing gets posted without your say-so.
+              </p>
+            </div>
           </div>
           <a className="ck-tag" href="/">
             Incident example →
