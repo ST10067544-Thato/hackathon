@@ -42,3 +42,17 @@ def test_every_write_to_a_social_account_is_confirmation_gated(companion):
         for name, gated in tool_names(member).items():
             if name in writes:
                 assert gated, f"{member.id}.{name} must require confirmation"
+
+
+def test_google_provider_builds_a_gemini_model(settings):
+    """MODEL_PROVIDER=google (or the `gemini` alias) drives the whole team."""
+    from dataclasses import replace
+
+    from agno.models.google import Gemini
+
+    from creator_companion.agents import build_model
+
+    model = build_model(replace(settings, model_provider="google", google_api_key="AIza-test", model_id="gemini-2.5-flash"))
+
+    assert isinstance(model, Gemini)
+    assert model.id == "gemini-2.5-flash"

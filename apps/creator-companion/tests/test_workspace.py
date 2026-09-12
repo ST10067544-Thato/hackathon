@@ -77,3 +77,22 @@ def test_webhook_event_dedupe(workspace: Workspace):
     assert workspace.record_webhook_event("evt_1", "comment.received") is True
     assert workspace.record_webhook_event("evt_1", "comment.received") is False
     assert workspace.record_webhook_event("evt_2", "comment.received") is True
+
+
+def test_gemini_alias_and_default_model(monkeypatch, tmp_path):
+    """`MODEL_PROVIDER=gemini` is the spelling people type; it must not fall through to OpenAI."""
+    from creator_companion.config import Settings
+
+    monkeypatch.setattr("creator_companion.config.load_env_files", lambda: None)
+    for var in ("MODEL", "MODEL_PROVIDER", "GOOGLE_API_KEY", "GEMINI_API_KEY", "BROWSER_MODEL"):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setenv("MODEL_PROVIDER", "gemini")
+    monkeypatch.setenv("GEMINI_API_KEY", "AIza-from-gemini-var")
+
+    settings = Settings.load()
+
+    assert settings.model_provider == "google"
+    assert settings.model_id == "gemini-2.5-flash"
+    assert settings.browser_model_id == "gemini-2.5-flash"
+    assert settings.google_api_key == "AIza-from-gemini-var"
+    assert settings.model_api_key == "AIza-from-gemini-var"

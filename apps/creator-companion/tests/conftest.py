@@ -63,6 +63,7 @@ def settings(tmp_path: Path) -> Settings:
         model_id="gpt-test",
         openai_api_key="sk-test",
         openrouter_api_key=None,
+        google_api_key=None,
         exa_api_key=None,
         zernio_api_key="sk_test",
         zernio_base_url="https://zernio.test/api/v1",
@@ -79,6 +80,8 @@ def settings(tmp_path: Path) -> Settings:
         browser_use_api_key=None,
         browser_use_cloud=False,
         browser_model_id="gpt-test",
+        browser_max_completion_tokens=1024,
+        browser_vision=True,
     )
 
 

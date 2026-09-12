@@ -23,9 +23,9 @@ repository root `.env`, like the other apps.
 
 ```dotenv
 # model (same variables as the rest of the kit)
-MODEL_PROVIDER=openai            # or openrouter
-OPENAI_API_KEY=...
-MODEL=gpt-5.4-mini               # any tool-capable model available to your account
+MODEL_PROVIDER=google            # openai | openrouter | google (alias: gemini)
+GOOGLE_API_KEY=AIza...           # https://aistudio.google.com/apikey (GEMINI_API_KEY also accepted)
+MODEL=gemini-3.6-flash           # any tool-capable model available to your account
 
 # Zernio
 ZERNIO_API_KEY=sk_...            # https://zernio.com/dashboard → API keys
@@ -38,6 +38,9 @@ BROWSER_USE_API_KEY=bu_...       # Web Scout uses Browser Use's hosted model (bu
 BROWSER_USE_CLOUD=0              # 1 = hosted browsers on that key; 0 = local headless Chrome (default)
 BROWSER_SCOUT=auto               # auto | on | off — auto enables the scout when the extra is installed
 BROWSER_MAX_STEPS=12             # also BROWSER_TIMEOUT_SECONDS=180, BROWSER_HEADLESS=1
+BROWSER_MODEL=                   # defaults to MODEL; set a cheaper model to drive the browser
+BROWSER_MAX_COMPLETION_TOKENS=1024   # per browsing step; raise only if steps get truncated
+BROWSER_VISION=1                 # 0 = DOM only, much smaller prompts on a tight token budget
 DATABASE_URL=postgresql+psycopg://...   # otherwise SQLite in apps/creator-companion/data/
 CREATOR_COMPANION_PORT=7777
 ```
@@ -153,10 +156,22 @@ forbids logging in or clicking anything that posts, likes, follows, subscribes, 
 Failures (login wall, captcha, timeout, LLM error) come back as structured errors the
 agent can report, never as a crashed run.
 
-Model: with `BROWSER_USE_API_KEY` set the scout uses Browser Use's hosted `bu-latest`
-(billed to that key); otherwise it uses the same `MODEL_PROVIDER`/`MODEL` as the chat,
-capped at 4k completion tokens per step. Set `BROWSER_USE_CLOUD=1` to run the browser in
-Browser Use Cloud instead of local Chrome.
+Model: with `BROWSER_USE_API_KEY` set the scout tries Browser Use's hosted `bu-latest`
+(billed to that key); otherwise it uses the same `MODEL_PROVIDER`/`MODEL` as the chat —
+Gemini via `ChatGoogle` when the provider is `google` — capped at
+`BROWSER_MAX_COMPLETION_TOKENS` per step. A hosted key that the LLM gateway refuses (free
+tier) is detected and the run is redone once on your provider model, which is then used for
+the rest of the process. Set `BROWSER_USE_CLOUD=1` to run the browser in Browser Use Cloud
+instead of locally.
+
+The local browser is **Chromium** — the build installed by `browser-use install`, pinned
+with `channel="chromium"`. It is deliberately never your own Google Chrome, whose profile
+carries your real cookies and logged-in sessions into what must be an anonymous read-only
+visit. Run `uv run browser-use install` once to fetch it.
+
+When the model behind the browser runs out of credit or quota, `browse_page` returns
+`{"error": true, "code": "model_quota", ...}` naming the billing problem, rather than
+reporting that the page was blocked.
 
 ## Layout
 

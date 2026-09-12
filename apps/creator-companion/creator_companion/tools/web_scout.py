@@ -10,6 +10,10 @@ mentioned in a comment.
 Guard rails: only http(s) URLs to public hosts, a step and time budget per run, and
 a task prompt that forbids logging in or pressing anything that publishes, likes,
 follows, or buys. The browser session is created per call and closed afterwards.
+
+The local browser is pinned to Chromium (`channel="chromium"`), the build installed
+by `browser-use install` — never the developer's own Google Chrome, which would
+carry their real profile and logged-in sessions into a read-only scout.
 """
 
 from __future__ import annotations
@@ -88,6 +92,45 @@ When you are done, call done with the findings in the required structure.
 """
 
 
+# Provider refused on billing/quota, not on anything about the page. Surfacing this
+# as a distinct code stops the agent reporting "the page was blocked" when the real
+# cause is an empty balance.
+MODEL_QUOTA_MARKERS = (
+    "prompt tokens limit exceeded",
+    "requires more credits",
+    "insufficient_quota",
+    "exceeded your current quota",
+    "rate limit",
+    "error code: 402",
+)
+
+
+def _model_quota_exhausted(errors: list[str]) -> bool:
+    blob = " ".join(errors).lower()
+    return any(marker in blob for marker in MODEL_QUOTA_MARKERS)
+
+
+GATEWAY_REJECTION_MARKERS = (
+    "free tier",
+    "llm gateway",
+    "upgrade your subscription",
+    "invalid api key",
+    "unauthorized",
+)
+
+
+def _gateway_rejected(errors: list[str]) -> bool:
+    """True when browser-use's hosted model refused the key rather than failing on the page.
+
+    A free-tier BROWSER_USE_API_KEY is accepted for the browser but rejected by the
+    LLM gateway, and browser-use's own `fallback_llm` does not always take over
+    before `max_failures` ends the run. Detecting it lets us redo the run on the
+    provider model instead of handing back an empty result.
+    """
+    blob = " ".join(errors).lower()
+    return any(marker in blob for marker in GATEWAY_REJECTION_MARKERS)
+
+
 class WebScoutTools(Toolkit):
     def __init__(
         self,
@@ -101,6 +144,10 @@ class WebScoutTools(Toolkit):
         self.max_steps = max_steps
         self.timeout_seconds = timeout_seconds
         self.headless = headless
+        # Flipped the first time the hosted model refuses the key, so the rest of
+        # the process goes straight to the provider model instead of paying for
+        # the same rejection on every call.
+        self._hosted_llm_unusable = False
         # Same tool under one name for both entrypoints: Agno's arun() uses the
         # async variant, run() the sync wrapper.
         super().__init__(
@@ -170,20 +217,15 @@ class WebScoutTools(Toolkit):
             )
 
     async def _run(self, url: str, goal: str) -> dict[str, Any]:
-        from browser_use import Agent, BrowserProfile
+        history = await self._run_once(url, goal)
 
-        agent = Agent(
-            task=TASK_TEMPLATE.format(url=url, goal=goal),
-            llm=self._llm(),
-            fallback_llm=self._fallback_llm(),
-            browser_profile=self._browser_profile(BrowserProfile),
-            output_model_schema=PageFindings,
-            use_vision=True,
-            max_failures=2,
-            max_actions_per_step=3,
-            calculate_cost=False,
-        )
-        history = await asyncio.wait_for(agent.run(max_steps=self.max_steps), timeout=self.timeout_seconds)
+        # A hosted-model rejection is about the key, not the page: redo the run on
+        # the provider model once, then remember so later calls skip the hosted one.
+        errors = [e for e in history.errors() if e]
+        if not history.is_done() and not self._hosted_llm_unusable and self._using_hosted_llm() and _gateway_rejected(errors):
+            log.warning("browser-use hosted model rejected the key (%s); retrying on %s", errors[0][:120], self.settings.browser_model_id)
+            self._hosted_llm_unusable = True
+            history = await self._run_once(url, goal)
 
         findings: Any = history.structured_output
         if findings is None:
@@ -193,28 +235,74 @@ class WebScoutTools(Toolkit):
             findings = findings.model_dump()
 
         visited = [u for u in history.urls() if u]
+        errors = [e for e in history.errors() if e]
+
+        # The browser worked; the model behind it ran out of budget. Say exactly
+        # that, so the agent reports a billing problem instead of claiming the
+        # site blocked it.
+        if not history.is_done() and _model_quota_exhausted(errors):
+            return {
+                "error": True,
+                "code": "model_quota",
+                "message": "The browsing model ran out of credit or hit its quota before finishing the page.",
+                "hint": (
+                    "Add credit for the browsing model, lower BROWSER_MAX_COMPLETION_TOKENS, "
+                    "or point BROWSER_MODEL at a cheaper model. The page itself was reachable."
+                ),
+                "url": url,
+                "final_url": visited[-1] if visited else url,
+                "pages_visited": len(dict.fromkeys(visited)),
+                "steps": history.number_of_steps(),
+                "provider_error": errors[0][:400],
+            }
+
         return {
             "url": url,
-            "browser": "cloud" if (self.settings.browser_use_cloud and self.settings.browser_use_api_key) else "local",
-            "llm": ("browser-use → " if self.settings.browser_use_api_key else "") + self.settings.browser_model_id,
+            "browser": "cloud" if (self.settings.browser_use_cloud and self.settings.browser_use_api_key) else "local chromium",
+            "llm": ("browser-use → " if self._using_hosted_llm() else "") + self.settings.browser_model_id,
             "final_url": visited[-1] if visited else url,
             "pages_visited": len(dict.fromkeys(visited)),
             "steps": history.number_of_steps(),
             "completed": bool(history.is_done()),
             "findings": findings,
-            "errors": [e for e in history.errors() if e][:5],
+            "errors": errors[:5],
         }
 
-    # Per-step completion cap. browser-use's steps are short JSON action lists, so
-    # 4k is plenty and keeps each call affordable on a low OpenRouter balance.
-    MAX_COMPLETION_TOKENS = 4096
+    async def _run_once(self, url: str, goal: str):
+        from browser_use import Agent, BrowserProfile
+
+        agent = Agent(
+            task=TASK_TEMPLATE.format(url=url, goal=goal),
+            llm=self._llm(),
+            fallback_llm=self._fallback_llm(),
+            browser_profile=self._browser_profile(BrowserProfile),
+            output_model_schema=PageFindings,
+            # Screenshots dominate the prompt. Turning vision off is the cheapest
+            # lever for an account on a tight token budget.
+            use_vision=self.settings.browser_vision,
+            max_failures=2,
+            max_actions_per_step=3,
+            calculate_cost=False,
+        )
+        return await asyncio.wait_for(agent.run(max_steps=self.max_steps), timeout=self.timeout_seconds)
+
+    def _using_hosted_llm(self) -> bool:
+        return bool(self.settings.browser_use_api_key) and not self._hosted_llm_unusable
 
     def _browser_profile(self, BrowserProfile):
         s = self.settings
         if s.browser_use_cloud and s.browser_use_api_key:
             # Hosted browser from Browser Use Cloud, billed to BROWSER_USE_API_KEY.
             return BrowserProfile(use_cloud=True, minimum_wait_page_load_time=0.5)
+        # Pin the channel to Chromium (the Chrome-for-Testing build fetched by
+        # `browser-use install`) rather than leaving it unset. Unset lets
+        # browser-use pick whatever it finds — on a developer laptop that is
+        # usually the installed Google Chrome, which carries the person's real
+        # profile, cookies and logged-in sessions. A read-only scout must browse
+        # as an anonymous visitor, and the demo must behave the same on every
+        # machine, so the bundled Chromium is the only correct choice here.
         return BrowserProfile(
+            channel="chromium",
             headless=self.headless,
             minimum_wait_page_load_time=0.5,
             window_size={"width": 1280, "height": 900},
@@ -222,7 +310,7 @@ class WebScoutTools(Toolkit):
 
     def _llm(self):
         """Primary model: Browser Use's hosted `bu-latest` when its key is set, else the provider model."""
-        if self.settings.browser_use_api_key:
+        if self._using_hosted_llm():
             # Tuned for browsing and billed to BROWSER_USE_API_KEY (paid plans only:
             # a free-tier key is rejected by the gateway, and the run then continues
             # on the fallback below).
@@ -233,7 +321,7 @@ class WebScoutTools(Toolkit):
 
     def _fallback_llm(self):
         """Used for the rest of a run after the primary model errors (rate limit, auth, plan)."""
-        return self._provider_llm() if self.settings.browser_use_api_key else None
+        return self._provider_llm() if self._using_hosted_llm() else None
 
     def _provider_llm(self):
         s = self.settings
@@ -243,11 +331,23 @@ class WebScoutTools(Toolkit):
             return ChatOpenRouter(
                 model=s.browser_model_id,
                 api_key=s.openrouter_api_key,
-                extra_body={"max_tokens": self.MAX_COMPLETION_TOKENS},
+                extra_body={"max_tokens": s.browser_max_completion_tokens},
+            )
+        if s.model_provider == "google":
+            from browser_use.llm.google.chat import ChatGoogle
+
+            # Gemini names the cap `max_output_tokens`; the rest of the browsing
+            # budget (steps, timeout, vision) is unchanged across providers.
+            return ChatGoogle(
+                model=s.browser_model_id,
+                api_key=s.google_api_key,
+                config={"max_output_tokens": s.browser_max_completion_tokens},
             )
         from browser_use import ChatOpenAI
 
-        return ChatOpenAI(model=s.browser_model_id, api_key=s.openai_api_key, max_completion_tokens=self.MAX_COMPLETION_TOKENS)
+        return ChatOpenAI(
+            model=s.browser_model_id, api_key=s.openai_api_key, max_completion_tokens=s.browser_max_completion_tokens
+        )
 
 
 def _parse_findings(final: Optional[str]) -> Any:

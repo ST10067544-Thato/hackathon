@@ -6,6 +6,8 @@
   background so the creator gets a triage without polling.
 * ``GET /workspace/...`` reads back what the team produced, for a web UI or a
   browser agent.
+* ``GET /members`` reports which team members are actually mounted, so a UI does
+  not offer an agent this process never built (Web Scout is optional).
 """
 
 from __future__ import annotations
@@ -56,6 +58,7 @@ def comment_triage_prompt(payload: dict[str, Any]) -> str:
         "Decide whether it needs the creator's attention (question, complaint, collaboration, praise, spam). "
         "If it does, flag it with flag_for_attention and save a suggested reply with save_reply_draft. "
         "Do not call reply_to_comment: the creator has not authorized a reply. "
+        "Do not call save_report: this is a single-comment triage, not the periodic monitoring report. "
         "Answer in three lines or fewer."
     )
 
@@ -98,6 +101,21 @@ def create_base_app(companion: CreatorCompanion, settings: Settings) -> FastAPI:
             background.add_task(triage_comment, companion, payload)
             return {"ok": True, "event": event, "queued": True}
         return {"ok": True, "event": event, "ignored": True}
+
+    @app.get("/members")
+    def list_members() -> dict[str, Any]:
+        """Which agents this process actually mounted, for UIs that let a person pick one.
+
+        Web Scout is absent unless the optional `browser` extra is installed (or
+        BROWSER_SCOUT=on), and its AG-UI route only exists when it was built.
+        """
+        return {
+            "team": {"id": companion.team.id, "agui": "/agui"},
+            "members": [
+                {"id": member.id, "name": member.name, "agui": f"/members/{member.id}/agui"}
+                for member in companion.members
+            ],
+        }
 
     @app.get("/workspace/attention")
     def list_attention(status: str = Query("open"), limit: int = Query(50, ge=1, le=500)) -> dict[str, Any]:

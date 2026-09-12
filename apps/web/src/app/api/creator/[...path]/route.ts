@@ -4,15 +4,16 @@
  * The browser cannot call the Python service directly (different origin, no
  * CORS entry for :3100), so this forwards `/api/creator/workspace/...` to the
  * service's `/workspace/...` and returns its JSON untouched. Only GET, plus the
- * one POST that marks a draft sent/dismissed. Nothing here talks to a social
- * platform.
+ * one POST that marks a draft sent/dismissed. `members` is also allowed through:
+ * it tells the page which agents this service actually mounted. Nothing here
+ * talks to a social platform.
  */
 import { creatorCompanionUrl } from "@/lib/server/creator-companion";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const ALLOWED = /^workspace\/(attention|drafts|ideas|reports|reports\/latest|drafts\/\d+\/status)$/;
+const ALLOWED = /^(members|workspace\/(attention|drafts|ideas|reports|reports\/latest|drafts\/\d+\/status))$/;
 
 async function forward(request: Request, ctx: { params: Promise<{ path: string[] }> }) {
   const { path } = await ctx.params;

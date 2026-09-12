@@ -8,7 +8,13 @@ from agno.models.openai import OpenAIChat
 from creator_companion import agents as agents_module
 from creator_companion.agents import WEB_SCOUT_ID, build_team
 from creator_companion.tools import web_scout
-from creator_companion.tools.web_scout import PageFindings, WebScoutTools, validate_public_url
+from creator_companion.tools.web_scout import (
+    PageFindings,
+    WebScoutTools,
+    _gateway_rejected,
+    _model_quota_exhausted,
+    validate_public_url,
+)
 
 
 @pytest.mark.parametrize(
@@ -130,3 +136,130 @@ def test_cloud_browser_requires_key(settings):
 
     cloud = WebScoutTools(replace(settings, browser_use_cloud=True, browser_use_api_key="bu_test"))._browser_profile(BrowserProfile)
     assert cloud.use_cloud is True
+
+
+def test_local_browser_is_pinned_to_chromium(settings):
+    """Never the developer's own Google Chrome: that profile carries real logins."""
+    from browser_use import BrowserProfile
+
+    profile = WebScoutTools(settings)._browser_profile(BrowserProfile)
+
+    assert profile.channel is not None
+    assert str(getattr(profile.channel, "value", profile.channel)) == "chromium"
+
+
+def test_leader_delegates_browsing_only_when_the_scout_exists(settings, workspace, zernio_client, tmp_path):
+    """The leader must not claim it cannot browse while Web Scout is a member."""
+    db = SqliteDb(db_file=str(tmp_path / "agno.db"))
+    model = OpenAIChat(id="gpt-test", api_key="sk-test")
+
+    on = build_team(replace(settings, browser_scout="on"), db, workspace, zernio=zernio_client, model=model)
+    said = " ".join(on.team.instructions)
+    assert "Web Scout" in said
+    assert "Never tell the creator you are unable to visit a website" in said
+    # A bare site name must still reach the scout.
+    assert "resolve it to the obvious public URL" in said
+
+    off = build_team(replace(settings, browser_scout="off"), db, workspace, zernio=zernio_client, model=model)
+    said_off = " ".join(off.team.instructions)
+    assert "Web Scout" not in said_off
+    assert "no browser in this deployment" in said_off
+
+
+def test_free_tier_gateway_rejection_is_recognised():
+    assert _gateway_rejected(["API request failed: Free tier accounts are not allowed to use the LLM Gateway."])
+    assert not _gateway_rejected(["Timeout waiting for selector", "net::ERR_NAME_NOT_RESOLVED"])
+
+
+async def test_hosted_model_rejection_retries_on_the_provider_model(settings, monkeypatch):
+    """A free-tier BROWSER_USE_API_KEY must not end the run with an empty result."""
+    from browser_use.llm.browser_use.chat import ChatBrowserUse
+    from browser_use.llm.openrouter.chat import ChatOpenRouter
+
+    monkeypatch.setattr(web_scout, "browser_available", lambda: True)
+    tools = WebScoutTools(replace(settings, browser_use_api_key="bu_free", model_provider="openrouter", openrouter_api_key="sk-or-test"))
+
+    llms_used = []
+
+    class FakeHistory:
+        def __init__(self, done): self._done = done
+        def is_done(self): return self._done
+        def errors(self): return [] if self._done else ["API request failed: Free tier accounts are not allowed to use the LLM Gateway."]
+        def urls(self): return ["https://example.com"]
+        def number_of_steps(self): return 3
+        structured_output = PageFindings(page_title="Example", answer="Saw the page.")
+
+    async def fake_run_once(url, goal):
+        llms_used.append(type(tools._llm()))
+        return FakeHistory(done=len(llms_used) > 1)
+
+    monkeypatch.setattr(tools, "_run_once", fake_run_once)
+    result = json.loads(await tools.abrowse_page("https://example.com", "what is on it"))
+
+    assert llms_used == [ChatBrowserUse, ChatOpenRouter], "must retry on the provider model"
+    assert result["completed"] is True
+    assert result["llm"] == "openai/gpt-5.4-mini" or "browser-use" not in result["llm"]
+    # The hosted model is skipped from now on rather than rejected again.
+    assert tools._hosted_llm_unusable is True
+    assert isinstance(tools._llm(), ChatOpenRouter)
+
+
+def test_model_quota_is_distinguished_from_a_blocked_page():
+    assert _model_quota_exhausted(["Error code: 402 - Prompt tokens limit exceeded: 8559 > 6222"])
+    assert not _model_quota_exhausted(["login wall detected", "captcha"])
+
+
+async def test_out_of_credit_reports_billing_not_a_blocked_page(settings, monkeypatch):
+    """The page was reachable; only the model ran dry. Never report that as blocked."""
+    monkeypatch.setattr(web_scout, "browser_available", lambda: True)
+    tools = WebScoutTools(settings)
+
+    class QuotaHistory:
+        def is_done(self): return False
+        def errors(self): return ["Error code: 402 - Prompt tokens limit exceeded: 8559 > 6222"]
+        def urls(self): return ["https://later.com/"]
+        def number_of_steps(self): return 4
+        structured_output = None
+        def final_result(self): return None
+
+    async def fake_run_once(url, goal):
+        return QuotaHistory()
+
+    monkeypatch.setattr(tools, "_run_once", fake_run_once)
+    result = json.loads(await tools.abrowse_page("https://later.com", "what is on it"))
+
+    assert result["error"] is True
+    assert result["code"] == "model_quota"
+    assert "blocked" not in result
+    assert result["final_url"] == "https://later.com/"
+    assert "credit" in result["hint"].lower()
+
+
+def test_scout_is_told_to_always_use_its_browser(settings, workspace, zernio_client, tmp_path):
+    """The scout refusing to browse is the bug this guards; it owns a browser."""
+    db = SqliteDb(db_file=str(tmp_path / "agno.db"))
+    model = OpenAIChat(id="gpt-test", api_key="sk-test")
+    on = build_team(replace(settings, browser_scout="on"), db, workspace, zernio=zernio_client, model=model)
+
+    said = " ".join(on.web_scout.instructions)
+    assert "Always answer a page request by calling browse_page" in said
+    assert "never reply that you are unable to browse" in said
+
+
+def test_browser_agent_uses_gemini_when_the_provider_is_google(settings):
+    """The Web Scout must follow MODEL_PROVIDER, not stay on a different provider."""
+    from browser_use.llm.google.chat import ChatGoogle
+
+    tools = WebScoutTools(
+        replace(settings, model_provider="google", google_api_key="AIza-test", browser_model_id="gemini-2.5-flash")
+    )
+
+    llm = tools._llm()
+    assert isinstance(llm, ChatGoogle)
+    assert llm.model == "gemini-2.5-flash"
+
+    # And it is still the fallback when the hosted browser-use model is in front.
+    hosted = WebScoutTools(
+        replace(settings, model_provider="google", google_api_key="AIza-test", browser_use_api_key="bu_test")
+    )
+    assert isinstance(hosted._fallback_llm(), ChatGoogle)
