@@ -24,3 +24,13 @@ Thumbs.db
 *.log
 npm-debug.log*
 yarn-error.log*
+
+# python (apps/creator-companion)
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+apps/creator-companion/data/
+
+# typescript incremental build info
+*.tsbuildinfo

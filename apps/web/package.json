@@ -11,15 +11,16 @@
     "check:workplace": "node --env-file-if-exists=../../.env --import tsx scripts/check-workplace.ts"
   },
   "dependencies": {
+    "@ag-ui/client": "0.0.59",
     "@copilotkit/react-core": "1.70.1",
     "@copilotkit/runtime": "1.70.3",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@openai/agents": "^0.17.2",
     "agent-core": "*",
     "next": "^15.5.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "zod": "^4.1.0",
-    "@modelcontextprotocol/sdk": "^1.30.0"
+    "zod": "^4.1.0"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",

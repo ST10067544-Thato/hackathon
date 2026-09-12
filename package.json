@@ -20,7 +20,9 @@
     "channel:setup": "npx copilotkit@latest channels setup",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "dev:web": "npm run dev --workspace web",
+    "dev:agents": "uv run --directory apps/creator-companion creator-companion",
     "test": "npm run test --workspaces --if-present",
+    "test:agents": "uv run --directory apps/creator-companion pytest -q",
     "verify": "npm run typecheck && npm test"
   },
   "overrides": {
