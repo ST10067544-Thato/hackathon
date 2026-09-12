@@ -531,3 +531,22 @@ p {
   font-size: 13px;
   overflow-wrap: anywhere;
 }
+
+/* Creator Companion page */
+.ck-priority-high {
+  color: #b42318;
+}
+.ck-priority-medium {
+  color: #b54708;
+}
+.ck-priority-low {
+  color: var(--muted, #667085);
+}
+.ck-followups h3 {
+  margin: 1.1rem 0 0.4rem;
+  font-size: 0.95rem;
+}
+.ck-report {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

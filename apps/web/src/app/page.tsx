@@ -59,6 +59,9 @@ export default function Home() {
             </p>
           </div>
           <span className="ck-tag">Sample data</span>
+          <a className="ck-tag" href="/creator">
+            Creator Companion →
+          </a>
         </header>
 
         <div className="ck-workspace-grid">

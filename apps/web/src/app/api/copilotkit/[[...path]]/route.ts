@@ -15,17 +15,37 @@
  *
  * 2. Do NOT reuse one agent instance across requests. The factory form hands
  *    out a fresh agent per resolution.
+ *
+ * Besides the built-in incident agent (`default`), the runtime registers the
+ * Creator Companion team and its members. They run in the Python AgentOS
+ * (apps/creator-companion) and speak AG-UI, so each is a plain `HttpAgent`
+ * pointed at that service — the runtime streams events through unchanged, and
+ * approval pauses arrive as tool calls the page answers (see
+ * components/creator-approvals.tsx).
  */
 import { randomUUID } from "node:crypto";
+import { HttpAgent } from "@ag-ui/client";
 import {
   CopilotRuntime,
   createCopilotHonoHandler,
 } from "@copilotkit/runtime/v2";
 import { makeAgent } from "agent-core";
+import { CREATOR_AGENTS } from "@/lib/creator-companion";
+import { creatorCompanionUrl } from "@/lib/server/creator-companion";
+
+function creatorAgents() {
+  const base = creatorCompanionUrl();
+  return Object.fromEntries(
+    CREATOR_AGENTS.map(({ id, path }) => [id, new HttpAgent({ url: `${base}${path}` })]),
+  );
+}
 
 // Web writes use /api/followups after a browser approval. Never expose raw MCP writes here.
 const runtime = new CopilotRuntime({
-  agents: () => ({ default: makeAgent(randomUUID(), { workplace: false }) }),
+  agents: () => ({
+    default: makeAgent(randomUUID(), { workplace: false }),
+    ...creatorAgents(),
+  }),
 });
 
 const app = createCopilotHonoHandler({
