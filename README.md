@@ -145,6 +145,8 @@ The app READMEs provide launch commands, files to customize, and a concrete resu
 
 For credit redemption instructions, choose your city on the [global event page](https://aitinkerers.org/hackathons/global/agents-everywhere) and check its participant portal's **Credits & Offers** section.
 
+Repo by Thato, Dimpho & Azania
+
 For technical questions during the event, check your city's participant portal and ask your local organizers.
 
 For the Slack/web workspaces, `npm run verify` runs typechecks and offline tests without credentials. The mobile app has its own install, tests, typecheck, and Metro export checks under `apps/mobile`. Each app reports missing configuration when the relevant integration is used. Live sponsor calls and platform delivery require your accounts. See [developer docs](dev-docs/README.md) for detailed setup and deployment.
